@@ -1882,7 +1882,7 @@ UnitFileState unit_file_get_state(
         return unit_file_lookup_state(scope, root_dir, &paths, name);
 }
 
-int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char *name) {
+int unit_file_query_preset(UnitFileScope scope, bool runtime, const char *root_dir, const char *name) {
         _cleanup_strv_free_ char **files = NULL;
         char **p;
         int r;
@@ -1891,7 +1891,7 @@ int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char
         assert(scope < _UNIT_FILE_SCOPE_MAX);
         assert(name);
 
-        if (scope == UNIT_FILE_SYSTEM)
+        if (scope == UNIT_FILE_SYSTEM && !runtime)
                 r = conf_files_list(&files, ".preset", root_dir,
                                     "/etc/systemd/system-preset",
                                     "/usr/local/lib/systemd/system-preset",
@@ -1900,11 +1900,26 @@ int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char
                                     "/lib/systemd/system-preset",
 #endif
                                     NULL);
-        else if (scope == UNIT_FILE_GLOBAL)
+        else if (scope == UNIT_FILE_GLOBAL && !runtime)
                 r = conf_files_list(&files, ".preset", root_dir,
                                     "/etc/systemd/user-preset",
                                     "/usr/local/lib/systemd/user-preset",
                                     "/usr/lib/systemd/user-preset",
+                                    NULL);
+        else if (scope == UNIT_FILE_SYSTEM && runtime)
+                r = conf_files_list(&files, ".preset", root_dir,
+                                    "/etc/systemd/system-preset-transient",
+                                    "/usr/local/lib/systemd/system-preset-transient",
+                                    "/usr/lib/systemd/system-preset-transient",
+#ifdef HAVE_SPLIT_USR
+                                    "/lib/systemd/system-preset-transient",
+#endif
+                                    NULL);
+        else if (scope == UNIT_FILE_GLOBAL && runtime)
+                r = conf_files_list(&files, ".preset", root_dir,
+                                    "/etc/systemd/user-preset-transient",
+                                    "/usr/local/lib/systemd/user-preset-transient",
+                                    "/usr/lib/systemd/user-preset-transient",
                                     NULL);
         else
                 return 1;
@@ -1997,7 +2012,7 @@ int unit_file_preset(
                 if (!unit_name_is_valid(*i, UNIT_NAME_ANY))
                         return -EINVAL;
 
-                r = unit_file_query_preset(scope, root_dir, *i);
+                r = unit_file_query_preset(scope, runtime, root_dir, *i);
                 if (r < 0)
                         return r;
 
@@ -2098,7 +2113,7 @@ int unit_file_preset_all(
                         if (de->d_type != DT_REG)
                                 continue;
 
-                        r = unit_file_query_preset(scope, root_dir, de->d_name);
+                        r = unit_file_query_preset(scope, runtime, root_dir, de->d_name);
                         if (r < 0)
                                 return r;
 
