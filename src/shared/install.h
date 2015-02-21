@@ -123,7 +123,7 @@ void unit_file_list_free(Hashmap *h);
 int unit_file_changes_add(UnitFileChange **changes, unsigned *n_changes, UnitFileChangeType type, const char *path, const char *source);
 void unit_file_changes_free(UnitFileChange *changes, unsigned n_changes);
 
-int unit_file_query_preset(UnitFileScope scope, const char *root_dir, const char *name);
+int unit_file_query_preset(UnitFileScope scope, bool runtime, const char *root_dir, const char *name);
 
 const char *unit_file_state_to_string(UnitFileState s) _const_;
 UnitFileState unit_file_state_from_string(const char *s) _pure_;

@@ -1206,6 +1206,23 @@ static int write_container_id(void) {
         return write_string_file("/run/systemd/container", c);
 }
 
+static int transient_presets(void) {
+        struct stat st;
+
+        if (lstat("/usr/lib/systemd/system-preset-transient", &st) == 0)
+                return !!S_ISDIR(st.st_mode);
+
+#ifdef HAVE_SPLIT_USR
+        if (lstat("/lib/systemd/system-preset-transient", &st) == 0)
+                return !!S_ISDIR(st.st_mode);
+#endif
+
+        if (lstat("/etc/systemd/system-preset-transient", &st) == 0)
+                return !!S_ISDIR(st.st_mode);
+
+        return 0;
+}
+
 int main(int argc, char *argv[]) {
         Manager *m = NULL;
         int r, retval = EXIT_FAILURE;
@@ -1613,6 +1630,16 @@ int main(int argc, char *argv[]) {
         if (arg_running_as == MANAGER_SYSTEM) {
                 bump_rlimit_nofile(&saved_rlimit_nofile);
 
+                // NB! transient presets must be applied before normal
+                if (transient_presets()) {
+                        r = unit_file_preset_all(UNIT_FILE_SYSTEM, true, NULL, UNIT_FILE_PRESET_ENABLE_ONLY, false, NULL, 0);
+                        if (r < 0)
+                                log_warning_errno(r, "Failed to populate transient preset unit settings, ignoring: %m");
+                        else
+                                log_info("Populated transient preset unit settings.");
+                }
+
+                // NB! normal presets must be applied after transient
                 if (empty_etc) {
                         r = unit_file_preset_all(UNIT_FILE_SYSTEM, false, NULL, UNIT_FILE_PRESET_ENABLE_ONLY, false, NULL, 0);
                         if (r < 0)
