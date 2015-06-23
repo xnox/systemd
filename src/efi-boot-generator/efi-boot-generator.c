@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
                 "What=%s\n"
                 "Where=/boot\n"
                 "Type=vfat\n"
-                "Options=umask=0077,noauto\n",
+                "Options=umask=0077,noauto,ro\n",
                 what);
 
         r = fflush_and_check(f);
@@ -147,14 +147,6 @@ int main(int argc, char *argv[]) {
         r = fflush_and_check(f);
         if (r < 0) {
                 log_error_errno(r, "Failed to write automount unit file: %m");
-                return EXIT_FAILURE;
-        }
-
-        name = strjoina(arg_dest, "/" SPECIAL_LOCAL_FS_TARGET ".wants/boot.automount");
-        mkdir_parents(name, 0755);
-
-        if (symlink("../boot.automount", name) < 0) {
-                log_error_errno(errno, "Failed to create symlink %s: %m", name);
                 return EXIT_FAILURE;
         }
 
