@@ -682,7 +682,7 @@ static int import_parent_into_properties(struct udev_device *dev, const char *fi
         return 0;
 }
 
-#define WAIT_LOOP_PER_SECOND                50
+#define WAIT_LOOP_PER_SECOND                250
 static int wait_for_file(struct udev_device *dev, const char *file, int timeout) {
         char filepath[UTIL_PATH_SIZE];
         char devicepath[UTIL_PATH_SIZE];
