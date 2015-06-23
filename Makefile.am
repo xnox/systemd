@@ -2185,10 +2185,8 @@ dist_tmpfiles_DATA = \
 	tmpfiles.d/home.conf \
 	tmpfiles.d/systemd-nspawn.conf
 
-if HAVE_SYSV_COMPAT
 dist_tmpfiles_DATA += \
 	tmpfiles.d/legacy.conf
-endif
 
 SYSINIT_TARGET_WANTS += \
 	systemd-tmpfiles-setup-dev.service \
@@ -2241,16 +2239,6 @@ EXTRA_DIST += \
 	units/systemd-sysusers.service.in \
 	sysusers.d/systemd.conf.m4 \
 	sysusers.d/basic.conf.in
-
-# ------------------------------------------------------------------------------
-dist_factory_etc_DATA = \
-	factory/etc/nsswitch.conf
-
-if HAVE_PAM
-dist_factory_pam_DATA = \
-	factory/etc/pam.d/system-auth \
-	factory/etc/pam.d/other
-endif
 
 # ------------------------------------------------------------------------------
 if ENABLE_FIRSTBOOT
