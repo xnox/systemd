@@ -2189,6 +2189,13 @@ static int setup_keyring(
         if (context->keyring_mode == EXEC_KEYRING_INHERIT)
                 return 0;
 
+        /* Check if we will need to call KEYCTL_CHOWN, and check if we have the capability to do so.  If not, skip
+         * keyring setup. These conditions would be met for units that specify User= or Group= and are executed in
+         * unpriviledged containers. For example LXD, OpenVZ, etc.
+         */
+        if (have_effective_cap(CAP_SYS_ADMIN) == 0 && (uid_is_valid(uid) || gid_is_valid(gid)))
+                return 0;
+
         keyring = keyctl(KEYCTL_JOIN_SESSION_KEYRING, 0, 0, 0, 0);
         if (keyring == -1) {
                 if (errno == ENOSYS)
