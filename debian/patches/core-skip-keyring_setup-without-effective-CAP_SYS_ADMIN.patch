@@ -1,0 +1,33 @@
+From: Dimitri John Ledkov <xnox@ubuntu.com>
+Date: Wed, 20 Sep 2017 15:16:36 +0100
+Subject: core: skip keyring_setup() without effective CAP_SYS_ADMIN
+
+KEYCTL_CHOWN fails under unpriviledged usernamespace containers that drop
+CAP_SYS_ADMIN (eg. LXD, OpenVZ, etc). Thus if KEYCTL_CHOWN operation is
+required, but will be impossible to perform, skip keyring_setup().
+
+Fixes #6281
+
+(cherry picked from commit e7fd91371325c83d7f32f3349562ad066d7a36b3)
+---
+ src/core/execute.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/core/execute.c b/src/core/execute.c
+index d72e5bf..c8139db 100644
+--- a/src/core/execute.c
++++ b/src/core/execute.c
+@@ -2085,6 +2085,13 @@ static int setup_keyring(Unit *u, const ExecParameters *p, uid_t uid, gid_t gid)
+         if (!(p->flags & EXEC_NEW_KEYRING))
+                 return 0;
+ 
++        /* Check if we will need to call KEYCTL_CHOWN, and check if we have the capability to do so.  If not, skip
++         * keyring setup. These conditions would be met for units that specify User= or Group= and are executed in
++         * unpriviledged containers. For example LXD, OpenVZ, etc.
++         */
++        if (have_effective_cap(CAP_SYS_ADMIN) == 0 && (uid_is_valid(uid) || gid_is_valid(gid)))
++                return 0;
++
+         keyring = keyctl(KEYCTL_JOIN_SESSION_KEYRING, 0, 0, 0, 0);
+         if (keyring == -1) {
+                 if (errno == ENOSYS)
