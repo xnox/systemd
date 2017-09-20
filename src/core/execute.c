@@ -2170,12 +2170,15 @@ static int setup_keyring(
                 uid_t uid, gid_t gid) {
 
         key_serial_t keyring;
-        int r;
+        int r = 0;
 
         assert(u);
         assert(context);
         assert(p);
 
+        log_open();
+        log_debug_errno(errno, "xnox welcome to setup_keyring()");
+        
         /* Let's set up a new per-service "session" kernel keyring for each system service. This has the benefit that
          * each service runs with its own keyring shared among all processes of the service, but with no hook-up beyond
          * that scope, and in particular no link to the per-UID keyring. If we don't do this the keyring will be
@@ -2184,18 +2187,21 @@ static int setup_keyring(
          * UIDs are not necessarily specific to a service but reused (at least in the case of UID 0). */
 
         if (!(p->flags & EXEC_NEW_KEYRING))
-                return 0;
+                goto out;
 
+        log_debug_errno(errno, "xnox passed need new keyring");
         if (context->keyring_mode == EXEC_KEYRING_INHERIT)
-                return 0;
+                goto out;
 
+        log_debug_errno(errno, "xnox passed inherit");
         /* Check if we will need to call KEYCTL_CHOWN, and check if we have the capability to do so.  If not, skip
          * keyring setup. These conditions would be met for units that specify User= or Group= and are executed in
          * unpriviledged containers. For example LXD, OpenVZ, etc.
          */
         if (have_effective_cap(CAP_SYS_ADMIN) == 0 && (uid_is_valid(uid) || gid_is_valid(gid)))
-                return 0;
+                goto out;
 
+        log_debug_errno(errno, "xnox passed capability check");
         keyring = keyctl(KEYCTL_JOIN_SESSION_KEYRING, 0, 0, 0, 0);
         if (keyring == -1) {
                 if (errno == ENOSYS)
@@ -2204,11 +2210,14 @@ static int setup_keyring(
                         log_debug_errno(errno, "Kernel keyring access prohibited, ignoring.");
                 else if (errno == EDQUOT)
                         log_debug_errno(errno, "Out of kernel keyrings to allocate, ignoring.");
-                else
-                        return log_error_errno(errno, "Setting up kernel keyring failed: %m");
+                else {
+                        r = log_error_errno(errno, "Setting up kernel keyring failed: %m");
+                        goto out;
+                }
 
-                return 0;
+                goto out;
         }
+        log_debug_errno(errno, "xnox passed join session");
 
         /* Populate they keyring with the invocation ID by default. */
         if (!sd_id128_is_null(u->invocation_id)) {
@@ -2220,16 +2229,22 @@ static int setup_keyring(
                 else {
                         if (keyctl(KEYCTL_SETPERM, key,
                                    KEY_POS_VIEW|KEY_POS_READ|KEY_POS_SEARCH|
-                                   KEY_USR_VIEW|KEY_USR_READ|KEY_USR_SEARCH, 0, 0) < 0)
-                                return log_error_errno(errno, "Failed to restrict invocation ID permission: %m");
+                                   KEY_USR_VIEW|KEY_USR_READ|KEY_USR_SEARCH, 0, 0) < 0) {
+                                r = log_error_errno(errno, "Failed to restrict invocation ID permission: %m");
+                                goto out;
+                        }
                 }
         }
 
+        log_debug_errno(errno, "xnox passed invocation id");
         /* And now, make the keyring owned by the service's user */
         if (uid_is_valid(uid) || gid_is_valid(gid))
-                if (keyctl(KEYCTL_CHOWN, keyring, uid, gid, 0) < 0)
-                        return log_error_errno(errno, "Failed to change ownership of session keyring: %m");
+                if (keyctl(KEYCTL_CHOWN, keyring, uid, gid, 0) < 0) {
+                        r = log_error_errno(errno, "Failed to change ownership of session keyring: %m");
+                        goto out;
+                }
 
+        log_debug_errno(errno, "xnox passed chown");
         /* When requested link the user keyring into the session keyring. */
         if (context->keyring_mode == EXEC_KEYRING_SHARED) {
                 uid_t saved_uid;
@@ -2279,7 +2294,9 @@ static int setup_keyring(
                 }
         }
 
-        return 0;
+out:
+        log_close();
+        return r;
 }
 
 static void append_socket_pair(int *array, unsigned *n, int pair[2]) {
