@@ -148,6 +148,7 @@ foreach sbatvar : sbatvars
         value = get_option(sbatvar[0])
         if value == ''
                 value = run_command('sed', '-n', 's/^' + sbatvar[1] + '=//p', '/etc/os-release').stdout().strip()
+                value = value.strip('"')
         endif
         if value != ''
                 sbat_substs.set(sbatvar[0], value)
