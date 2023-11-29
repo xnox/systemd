@@ -668,6 +668,7 @@ EFI_STATUS open_volume(EFI_HANDLE device, EFI_FILE **ret_file) {
 }
 
 void *find_configuration_table(const EFI_GUID *guid) {
+        log_trace();
         for (size_t i = 0; i < ST->NumberOfTableEntries; i++)
                 if (efi_guid_equal(&ST->ConfigurationTable[i].VendorGuid, guid))
                         return ST->ConfigurationTable[i].VendorTable;

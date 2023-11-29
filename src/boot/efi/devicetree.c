@@ -21,6 +21,7 @@ static EFI_STATUS devicetree_allocate(struct devicetree_state *state, size_t siz
         EFI_STATUS err;
 
         assert(state);
+        log_trace();
 
         err = BS->AllocatePages(AllocateAnyPages, EfiACPIReclaimMemory, pages, &state->addr);
         if (err != EFI_SUCCESS)
@@ -32,6 +33,7 @@ static EFI_STATUS devicetree_allocate(struct devicetree_state *state, size_t siz
 
 static size_t devicetree_allocated(const struct devicetree_state *state) {
         assert(state);
+        log_trace();
         return state->pages * EFI_PAGE_SIZE;
 }
 
@@ -41,6 +43,7 @@ static EFI_STATUS devicetree_fixup(struct devicetree_state *state, size_t len) {
         EFI_STATUS err;
 
         assert(state);
+        log_trace();
 
         err = BS->LocateProtocol(MAKE_GUID_PTR(EFI_DT_FIXUP_PROTOCOL), NULL, (void **) &fixup);
         if (err != EFI_SUCCESS)
@@ -67,7 +70,7 @@ static EFI_STATUS devicetree_fixup(struct devicetree_state *state, size_t len) {
                 err = fixup->Fixup(fixup, PHYSICAL_ADDRESS_TO_POINTER(state->addr), &size,
                                    EFI_DT_APPLY_FIXUPS | EFI_DT_RESERVE_MEMORY);
         }
-
+        log_trace();
         return err;
 }
 
@@ -116,14 +119,17 @@ EFI_STATUS devicetree_install(struct devicetree_state *state, EFI_FILE *root_dir
 }
 
 static const char* devicetree_get_compatible(const void *dtb) {
+        log_trace();
         if (!IS_ALIGNED64(dtb))
                 return NULL;
+        log_trace();
 
         const struct fdt_header *dt_header = ASSERT_PTR(dtb);
 
         if (be32toh(dt_header->Magic) != UINT32_C(0xd00dfeed))
                 return NULL;
 
+        log_trace();
         uint32_t dt_size = be32toh(dt_header->TotalSize);
         uint32_t struct_off = be32toh(dt_header->OffDTStruct);
         uint32_t struct_size = be32toh(dt_header->SizeDTStruct);
@@ -139,6 +145,7 @@ static const char* devicetree_get_compatible(const void *dtb) {
             end > strings_off)
                 return NULL;
 
+        log_trace();
         const uint32_t *cursor = (const uint32_t *) ((uint8_t *) dt_header + struct_off);
         const char *strings_block = (const char *) ((uint8_t *) dt_header + strings_off);
 
@@ -198,19 +205,23 @@ static const char* devicetree_get_compatible(const void *dtb) {
 EFI_STATUS devicetree_match(const void *dtb_buffer, size_t dtb_length) {
         assert(dtb_buffer);
         const struct fdt_header *dt_header = (const struct fdt_header *)dtb_buffer;
+        log_trace();
 
         if (dtb_length < sizeof(struct fdt_header) ||
             dtb_length < be32toh(dt_header->TotalSize))
-                return EFI_INVALID_PARAMETER;
+                return log_error_status(EFI_INVALID_PARAMETER, "Could not get dtb length");
 
         const void *fw_dtb = find_configuration_table(MAKE_GUID_PTR(EFI_DTB_TABLE));
         const char *fw_compat = fw_dtb
                                 ? devicetree_get_compatible(fw_dtb)
                                 : smbios_system_product_name();
 
+        log_trace();
+        log_error_status(EFI_SUCCESS, "fw_compat is %s", fw_compat);
+        log_wait();
         const char *compat = devicetree_get_compatible(dtb_buffer);
         if (!compat)
-                return EFI_INVALID_PARAMETER;
+                return log_error_status(EFI_INVALID_PARAMETER, "Could not get dtb compatible");
 
         /* Only matches the first compatible string from each DT */
         return streq8(compat, fw_compat) ? EFI_SUCCESS : EFI_NOT_FOUND;
@@ -221,6 +232,7 @@ EFI_STATUS devicetree_install_from_memory(
 
         EFI_STATUS err;
 
+        log_trace();
         assert(state);
         assert(dtb_buffer && dtb_length > 0);
 

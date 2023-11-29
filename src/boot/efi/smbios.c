@@ -6,7 +6,7 @@
 
 const void *find_smbios_configuration_table(uint64_t *ret_size) {
         assert(ret_size);
-
+        log_trace();
         const Smbios3EntryPoint *entry3 = find_configuration_table(MAKE_GUID_PTR(SMBIOS3_TABLE));
         if (entry3 && memcmp(entry3->anchor_string, "_SM3_", 5) == 0 &&
             entry3->entry_point_length <= sizeof(*entry3)) {
@@ -26,29 +26,27 @@ const void *find_smbios_configuration_table(uint64_t *ret_size) {
 
 const SmbiosHeader *get_smbios_table(uint8_t type, uint64_t *ret_size_left) {
         uint64_t size = 0;
+        log_trace();
         const uint8_t *p = find_smbios_configuration_table(&size);
+        log_trace();
         if (!p)
                 return NULL;
 
         for (;;) {
                 if (size < sizeof(SmbiosHeader))
                         return NULL;
-
                 const SmbiosHeader *header = (const SmbiosHeader *) p;
 
                 /* End of table. */
                 if (header->type == 127)
                         return NULL;
-
                 if (size < header->length)
                         return NULL;
-
                 if (header->type == type) {
                         if (ret_size_left)
                                 *ret_size_left = size;
                         return header; /* Yay! */
                 }
-
                 /* Skip over formatted area. */
                 size -= header->length;
                 p += header->length;
@@ -64,75 +62,82 @@ const SmbiosHeader *get_smbios_table(uint8_t type, uint64_t *ret_size_left) {
                                 size--;
                                 break;
                         }
-
                         size -= e + 1 - p;
                         p = e + 1;
                 }
         }
-
+        log_trace();
         return NULL;
 }
 
 bool smbios_in_hypervisor(void) {
         /* Look up BIOS Information (Type 0). */
+        log_trace();
         const SmbiosTableType0 *type0 = (const SmbiosTableType0 *) get_smbios_table(0, NULL);
         if (!type0 || type0->header.length < sizeof(SmbiosTableType0))
                 return false;
-
+        log_trace();
         /* Bit 4 of 2nd BIOS characteristics extension bytes indicates virtualization. */
         return FLAGS_SET(type0->bios_characteristics_ext[1], 1 << 4);
 }
 
 const char* smbios_find_oem_string(const char *name) {
         uint64_t left;
-
+        log_trace();
         assert(name);
 
         const SmbiosTableType11 *type11 = (const SmbiosTableType11 *) get_smbios_table(11, &left);
         if (!type11 || type11->header.length < sizeof(SmbiosTableType11))
                 return NULL;
-
+        log_trace();
         assert(left >= type11->header.length);
 
         const char *s = type11->contents;
         left -= type11->header.length;
 
         for (const char *p = s; p < s + left; ) {
+                log_trace();
                 const char *e = memchr(p, 0, s + left - p);
                 if (!e || e == p) /* Double NUL byte means we've reached the end of the OEM strings. */
                         break;
-
+                log_trace();
                 const char *eq = startswith8(p, name);
                 if (eq && *eq == '=')
                         return eq + 1;
 
                 p = e + 1;
         }
-
+        log_trace();
         return NULL;
 }
 
 const char* smbios_system_product_name(void) {
         uint64_t left;
+        log_trace();
+        log_wait();
         const SmbiosTableType1 *type1 = (const SmbiosTableType1 *) get_smbios_table(1, &left);
+        log_wait();
+        log_trace();
         if (!type1 || type1->header.length < offsetof(SmbiosTableType1, product_name) + 1)
                 return NULL;
-
+        log_trace();
+        log_wait();
         size_t str_idx = 0;
         const char *s = type1->strings;
         left -= type1->header.length;
 
         for (const char *p = s; p < s + left; ) {
+                log_trace();
                 const char *e = memchr(p, 0, s + left - p);
                 if (!e || e == p) /* Double NUL byte means we've reached the end of the OEM strings. */
                         break;
-
+                log_trace();
                 if (str_idx == type1->product_name)
                         return p;
-
+                log_trace();
                 p = e + 1;
                 str_idx += 1;
         }
-
+        log_trace();
         return NULL;
 }
